@@ -4,7 +4,8 @@
 import random
 
 # rediscluster imports
-from .crc import crc16
+# from .crc import crc16
+import crc16
 from .exceptions import RedisClusterException
 
 # 3rd party imports
@@ -44,7 +45,7 @@ class NodeManager(object):
             if end > -1 and end != start + 1:
                 k = k[start + 1:end]
 
-        return crc16(k) % self.RedisClusterHashSlots
+        return crc16.crc16xmodem(k.encode('utf-8')) % self.RedisClusterHashSlots
 
     def node_from_slot(self, slot):
         """
@@ -119,7 +120,7 @@ class NodeManager(object):
             'port',
             'decode_responses',
         )
-        connection_kwargs = {k: v for k, v in self.connection_kwargs.items() if k in set(allowed_keys) - set(disabled_keys)}
+        connection_kwargs = dict((k, v) for k, v in self.connection_kwargs.items() if k in set(allowed_keys) - set(disabled_keys))
         return StrictRedis(host=host, port=port, decode_responses=decode_responses, **connection_kwargs)
 
     def initialize(self):
@@ -270,7 +271,7 @@ class NodeManager(object):
                 self.startup_nodes.append(n)
 
         # freeze it so we can set() it
-        uniq = {frozenset(node.items()) for node in self.startup_nodes}
+        uniq = set(frozenset(node.items()) for node in self.startup_nodes)
         # then thaw it back out into a list of dicts
         self.startup_nodes = [dict(node) for node in uniq]
 

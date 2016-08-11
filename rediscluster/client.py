@@ -5,6 +5,8 @@ import datetime
 import random
 import string
 import time
+import threading
+import logging
 
 # rediscluster imports
 from .connection import ClusterConnectionPool, ClusterReadOnlyConnectionPool
@@ -32,12 +34,22 @@ from redis._compat import iteritems, basestring, b, izip, nativestr
 from redis.exceptions import RedisError, ResponseError, TimeoutError, DataError, ConnectionError, BusyLoadingError
 
 
+logger = logging.getLogger(__name__)
+
+
 class StrictRedisCluster(StrictRedis):
     """
     If a command is implemented over the one in StrictRedis then it requires some changes compared to
     the regular implementation of the method.
     """
     RedisClusterRequestTTL = 16
+
+    RedisClusterRetryTTLSleepMapping = {
+        14: 5,
+        10: 2,
+        6: 4,
+        2: 6,
+    }
 
     NODES_FLAGS = dict_merge(
         string_keys_to_dict([
@@ -166,12 +178,14 @@ class StrictRedisCluster(StrictRedis):
         self.response_callbacks = self.__class__.RESPONSE_CALLBACKS.copy()
         self.reinitialize_counter = 0
         self.reinitialize_steps = reinitialize_steps or 25
+        self.mutex = threading.Lock()
+
         self.response_callbacks = dict_merge(self.response_callbacks, self.CLUSTER_COMMANDS_RESPONSE_CALLBACKS)
 
     def __repr__(self):
         """
         """
-        servers = list({'{0}:{1}'.format(nativestr(info['host']), info['port']) for info in self.connection_pool.nodes.startup_nodes})
+        servers = list(set('{0}:{1}'.format(nativestr(info['host']), info['port']) for info in self.connection_pool.nodes.startup_nodes))
         servers.sort()
         return "{0}<{1}>".format(type(self).__name__, ', '.join(servers))
 
@@ -219,7 +233,7 @@ class StrictRedisCluster(StrictRedis):
         if command in ['EVAL', 'EVALSHA']:
             numkeys = args[2]
             keys = args[3: 3 + numkeys]
-            slots = {self.connection_pool.nodes.keyslot(key) for key in keys}
+            slots = set(self.connection_pool.nodes.keyslot(key) for key in keys)
             if len(slots) != 1:
                 raise RedisClusterException("{0} - all keys must map to the same key slot".format(command))
             return slots.pop()
@@ -285,18 +299,23 @@ class StrictRedisCluster(StrictRedis):
 
         while ttl > 0:
             ttl -= 1
+            self.try_init(ttl)
 
             if asking:
+                logger.debug('asking')
                 node = self.connection_pool.nodes.nodes[redirect_addr]
                 r = self.connection_pool.get_connection_by_node(node)
             elif try_random_node:
+                logger.debug('try_random_node')
                 r = self.connection_pool.get_random_connection()
                 try_random_node = False
             else:
                 if self.refresh_table_asap:
+                    logger.debug('refresh_table_asap')
                     # MOVED
                     node = self.connection_pool.get_master_node_by_slot(slot)
                 else:
+                    logger.debug('refresh_table_asap_else')
                     node = self.connection_pool.get_node_by_slot(slot)
                 r = self.connection_pool.get_connection_by_node(node)
 
@@ -311,17 +330,20 @@ class StrictRedisCluster(StrictRedis):
             except (RedisClusterException, BusyLoadingError):
                 raise
             except (ConnectionError, TimeoutError):
+                logger.error('connection error, ttl: %d', ttl)
                 try_random_node = True
 
                 if ttl < self.RedisClusterRequestTTL / 2:
                     time.sleep(0.1)
             except ClusterDownError as e:
+                logger.error('cluster down error, ttl: %d', ttl)
                 self.connection_pool.disconnect()
                 self.connection_pool.reset()
                 self.refresh_table_asap = True
 
                 raise e
             except MovedError as e:
+                logger.error('moved error, ttl: %d', ttl)
                 # Reinitialize on ever x number of MovedError.
                 # This counter will increase faster when the same client object
                 # is shared between multiple threads. To reduce the frequency you
@@ -333,14 +355,29 @@ class StrictRedisCluster(StrictRedis):
                 node = self.connection_pool.nodes.set_node(e.host, e.port, server_type='master')
                 self.connection_pool.nodes.slots[e.slot_id][0] = node
             except TryAgainError as e:
+                logger.error('try again error, ttl: %d', ttl)
                 if ttl < self.COMMAND_TTL / 2:
                     time.sleep(0.05)
             except AskError as e:
+                logger.error('ask error, ttl: %d', ttl)
                 redirect_addr, asking = "{0}:{1}".format(e.host, e.port), True
             finally:
                 self.connection_pool.release(r)
 
         raise ClusterError('TTL exhausted.')
+
+    def try_init(self, ttl):
+        sleep_time = self.RedisClusterRetryTTLSleepMapping.get(ttl, None)
+        if sleep_time:
+            logger.error('ttl: %d, sleep %f s, try init', ttl, sleep_time)
+            time.sleep(sleep_time)
+            self.mutex.acquire()
+            try:
+                self.connection_pool.nodes.initialize()
+                logger.error('ttl: %d, try init success', ttl)
+            except Exception as e:
+                logger.error('ttl: %d, try init exception', ttl)
+            self.mutex.release()
 
     def _execute_command_on_nodes(self, nodes, *args, **kwargs):
         """

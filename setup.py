@@ -31,7 +31,8 @@ setup(
     url='http://github.com/grokzen/redis-py-cluster',
     license='MIT',
     install_requires=[
-        'redis>=2.10.2'
+        'redis>=2.10.5',
+        'crc16>=0.1.1',
     ],
     keywords=[
         'redis',
@@ -48,6 +49,7 @@ setup(
         # 'Development Status :: 7 - Inactive',
         'Programming Language :: Python',
         'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.3',
