@@ -2,7 +2,16 @@ Release Notes
 =============
 
 
-1.3.0 (??? ??, ????)
+1.3.1 (Oct 13, 2016)
+--------------------
+
+    * Rebuilt broken method scan_iter. Previous tests was to small to detect the problem but is not corrected to work on a bigger dataset during the test of that method. (korvus81, Grokzen, RedWhiteMiko)
+    * Errors in pipeline that should be retried, like connection errors, moved, errors and ask errors now fall back to single operation logic in StrictRedisCluster.execute_command. (72squared).
+    * Moved reinitialize_steps and counter into nodemanager so it can be correctly counted across pipeline operations (72squared).
+
+
+1.3.0 (Sep 11, 2016)
+--------------------
 
     * Removed RedisClusterMgt class and file
     * Fixed a bug when using pipelines with RedisCluster class (Ozahata)
@@ -17,6 +26,8 @@ Release Notes
       - cluster_reset_all_nodes
     * Command cluster_delslots now determines what cluster shard each slot is on and sends each slot deletion
       command to the correct node. Command have changed argument spec (Read Upgrading.rst for details)
+    * Fixed a bug when hashing the key it if was a python 3 byte string and it would cause it to route to wrong slot in the cluster (fossilet, Grokzen)
+    * Fixed a bug when reinitialize the nodemanager it would use the old nodes_cache instead of the new one that was just parsed (monklof)
 
 
 1.2.0 (Apr 09, 2016)
