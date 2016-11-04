@@ -295,7 +295,7 @@ class StrictRedisCluster(StrictRedis):
 
         while ttl > 0:
             ttl -= 1
-            self.try_init(ttl)
+            # self.try_init(ttl)
 
             if asking:
                 logger.debug('asking')
