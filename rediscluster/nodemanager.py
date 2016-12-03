@@ -59,7 +59,7 @@ class NodeManager(object):
             if end > -1 and end != start + 1:
                 k = k[start + 1:end]
 
-        return crc16(k) % self.RedisClusterHashSlots
+        return crc16.crc16xmodem(k) % self.RedisClusterHashSlots
 
     def keyslot_py_3(self, key):
         """

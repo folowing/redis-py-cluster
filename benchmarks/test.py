@@ -20,7 +20,7 @@ print('use %f ms' % (time.time() - _start))
 
 rc.set('foo', 'bar')
 
-for i in range(1, 10000):  # noqa
+for i in range(1, 100):  # noqa
     try:
         logging.info("SET foo{0} {1}".format(i, i))
         rc.set("foo{0}".format(i), i+3000)
