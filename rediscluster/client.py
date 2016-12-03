@@ -326,20 +326,16 @@ class StrictRedisCluster(StrictRedis):
             # self.try_init(ttl)
 
             if asking:
-                logger.debug('asking')
                 node = self.connection_pool.nodes.nodes[redirect_addr]
                 r = self.connection_pool.get_connection_by_node(node)
             elif try_random_node:
-                logger.debug('try_random_node')
                 r = self.connection_pool.get_random_connection()
                 try_random_node = False
             else:
                 if self.refresh_table_asap:
-                    logger.debug('refresh_table_asap')
                     # MOVED
                     node = self.connection_pool.get_master_node_by_slot(slot)
                 else:
-                    logger.debug('refresh_table_asap_else')
                     node = self.connection_pool.get_node_by_slot(slot)
                 r = self.connection_pool.get_connection_by_node(node)
 
@@ -354,20 +350,17 @@ class StrictRedisCluster(StrictRedis):
             except (RedisClusterException, BusyLoadingError):
                 raise
             except (ConnectionError, TimeoutError):
-                logger.error('connection error, ttl: %d', ttl)
                 try_random_node = True
 
                 if ttl < self.RedisClusterRequestTTL / 2:
                     time.sleep(0.1)
             except ClusterDownError as e:
-                logger.error('cluster down error, ttl: %d', ttl)
                 self.connection_pool.disconnect()
                 self.connection_pool.reset()
                 self.refresh_table_asap = True
 
                 raise e
             except MovedError as e:
-                logger.error('moved error, ttl: %d', ttl)
                 # Reinitialize on ever x number of MovedError.
                 # This counter will increase faster when the same client object
                 # is shared between multiple threads. To reduce the frequency you
@@ -378,11 +371,9 @@ class StrictRedisCluster(StrictRedis):
                 node = self.connection_pool.nodes.set_node(e.host, e.port, server_type='master')
                 self.connection_pool.nodes.slots[e.slot_id][0] = node
             except TryAgainError as e:
-                logger.error('try again error, ttl: %d', ttl)
                 if ttl < self.RedisClusterRequestTTL / 2:
                     time.sleep(0.05)
             except AskError as e:
-                logger.error('ask error, ttl: %d', ttl)
                 redirect_addr, asking = "{0}:{1}".format(e.host, e.port), True
             finally:
                 self.connection_pool.release(r)
