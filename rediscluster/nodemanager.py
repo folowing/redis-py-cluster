@@ -5,8 +5,7 @@ import random
 import sys
 
 # rediscluster imports
-# from .crc import crc16
-import crc16
+from .crc import crc16
 from .exceptions import RedisClusterException
 
 # 3rd party imports
@@ -59,7 +58,7 @@ class NodeManager(object):
             if end > -1 and end != start + 1:
                 k = k[start + 1:end]
 
-        return crc16.crc16xmodem(k) % self.RedisClusterHashSlots
+        return crc16(k) % self.RedisClusterHashSlots
 
     def keyslot_py_3(self, key):
         """
@@ -80,7 +79,7 @@ class NodeManager(object):
             if end > -1 and end != start + 1:
                 k = k[start + 1:end]
 
-        return crc16.crc16xmodem(k.encode('utf-8')) % self.RedisClusterHashSlots
+        return crc16(k.encode('utf-8')) % self.RedisClusterHashSlots
 
     def node_from_slot(self, slot):
         """

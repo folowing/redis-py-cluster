@@ -32,7 +32,6 @@ setup(
     license='MIT',
     install_requires=[
         'redis>=2.10.5',
-        'crc16>=0.1.1',
         'hiredis>=0.2.0',
     ],
     keywords=[
