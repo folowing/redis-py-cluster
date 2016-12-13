@@ -79,7 +79,7 @@ class NodeManager(object):
             if end > -1 and end != start + 1:
                 k = k[start + 1:end]
 
-        return crc16(k.encode('utf-8')) % self.RedisClusterHashSlots
+        return crc16(k) % self.RedisClusterHashSlots
 
     def node_from_slot(self, slot):
         """
